@@ -14,6 +14,7 @@ export interface OrderItem {
 export interface CustomerDetails {
   name?: string;
   phone: string;
+  paymentMethod?: "Cash" | "Card" | "UPI";
 }
 
 export interface Order {

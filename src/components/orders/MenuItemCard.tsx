@@ -15,7 +15,7 @@ export function MenuItemCard({ item, onAdd }: MenuItemCardProps) {
         <p className="text-sm text-muted-foreground">{item.category}</p>
       </div>
       <div className="flex items-center gap-3">
-        <span className="font-semibold text-primary">${item.price.toFixed(2)}</span>
+        <span className="font-semibold text-primary">₹{item.price.toFixed(2)}</span>
         <Button
           size="icon"
           variant="outline"

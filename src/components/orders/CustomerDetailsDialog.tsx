@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { User, Phone } from "lucide-react";
+import { User, Phone, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +11,13 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { CustomerDetails } from "@/types/pos";
 
 interface CustomerDetailsDialogProps {
@@ -26,6 +33,7 @@ export function CustomerDetailsDialog({
 }: CustomerDetailsDialogProps) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<"Cash" | "Card" | "UPI">("Cash");
   const [error, setError] = useState("");
 
   const handleSubmit = () => {
@@ -33,7 +41,7 @@ export function CustomerDetailsDialog({
       setError("Phone number is required");
       return;
     }
-    
+
     // Basic phone validation
     const phoneRegex = /^[0-9]{10,15}$/;
     if (!phoneRegex.test(phone.replace(/[- ]/g, ""))) {
@@ -41,15 +49,21 @@ export function CustomerDetailsDialog({
       return;
     }
 
-    onSubmit({ name: name.trim() || undefined, phone: phone.trim() });
+    onSubmit({
+      name: name.trim() || undefined,
+      phone: phone.trim(),
+      paymentMethod
+    });
     setName("");
     setPhone("");
+    setPaymentMethod("Cash");
     setError("");
   };
 
   const handleClose = () => {
     setName("");
     setPhone("");
+    setPaymentMethod("Cash");
     setError("");
     onOpenChange(false);
   };
@@ -92,6 +106,25 @@ export function CustomerDetailsDialog({
               type="tel"
             />
             {error && <p className="text-sm text-destructive">{error}</p>}
+          </div>
+          <div className="space-y-2">
+            <Label>
+              <CreditCard className="inline mr-2 h-4 w-4" />
+              Payment Method
+            </Label>
+            <Select
+              value={paymentMethod}
+              onValueChange={(value: "Cash" | "Card" | "UPI") => setPaymentMethod(value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select payment method" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Cash">Cash</SelectItem>
+                <SelectItem value="Card">Card</SelectItem>
+                <SelectItem value="UPI">UPI</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
         <DialogFooter>

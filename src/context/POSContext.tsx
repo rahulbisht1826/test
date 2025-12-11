@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { MenuItem, Order, Staff, Table } from "@/types/pos";
 import { menuItems as initialMenuItems, categories as initialCategories } from "@/data/menuItems";
 import { initialTables } from "@/data/mockData";
@@ -19,19 +19,77 @@ interface POSContextType {
   deleteMenuItems: (ids: string[]) => void;
   addOrder: (order: Omit<Order, "id" | "createdAt">) => void;
   updateOrderStatus: (id: string, status: Order["status"]) => void;
+  updateOrderDetails: (order: Order) => void;
+  deleteOrder: (id: string) => void;
+  deleteOrders: (ids: string[]) => void;
   addStaff: (staff: Omit<Staff, "id" | "createdAt" | "assignedTableIds">) => void;
   assignStaffToTable: (staffId: string, tableId: string) => void;
   resetTables: (tableIds: string[]) => void;
+  clearAllOrders: () => void;
 }
 
 const POSContext = createContext<POSContextType | undefined>(undefined);
 
 export function POSProvider({ children }: { children: ReactNode }) {
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(initialMenuItems);
-  const [categories, setCategories] = useState<string[]>(initialCategories);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [staff, setStaff] = useState<Staff[]>([]);
-  const [tables, setTables] = useState<Table[]>(initialTables);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>(() => {
+    const saved = localStorage.getItem("menuItems");
+    const parsed = saved ? JSON.parse(saved) : initialMenuItems;
+    return Array.isArray(parsed) ? parsed : initialMenuItems;
+  });
+  const [categories, setCategories] = useState<string[]>(() => {
+    const saved = localStorage.getItem("categories");
+    const parsed = saved ? JSON.parse(saved) : initialCategories;
+    return Array.isArray(parsed) ? parsed : initialCategories;
+  });
+  const [orders, setOrders] = useState<Order[]>(() => {
+    const saved = localStorage.getItem("orders");
+    try {
+      const parsed = saved ? JSON.parse(saved) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      console.error("Failed to parse orders:", e);
+      return [];
+    }
+  });
+  const [staff, setStaff] = useState<Staff[]>(() => {
+    const saved = localStorage.getItem("staff");
+    try {
+      const parsed = saved ? JSON.parse(saved) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [tables, setTables] = useState<Table[]>(() => {
+    const saved = localStorage.getItem("tables");
+    try {
+      const parsed = saved ? JSON.parse(saved) : initialTables;
+      return Array.isArray(parsed) ? parsed : initialTables;
+    } catch (e) {
+      return initialTables;
+    }
+  });
+
+  // Persist state
+  useEffect(() => {
+    localStorage.setItem("menuItems", JSON.stringify(menuItems));
+  }, [menuItems]);
+
+  useEffect(() => {
+    localStorage.setItem("categories", JSON.stringify(categories));
+  }, [categories]);
+
+  useEffect(() => {
+    localStorage.setItem("orders", JSON.stringify(orders));
+  }, [orders]);
+
+  useEffect(() => {
+    localStorage.setItem("staff", JSON.stringify(staff));
+  }, [staff]);
+
+  useEffect(() => {
+    localStorage.setItem("tables", JSON.stringify(tables));
+  }, [tables]);
 
   const addMenuItem = (item: Omit<MenuItem, "id">) => {
     const newItem: MenuItem = {
@@ -58,19 +116,35 @@ export function POSProvider({ children }: { children: ReactNode }) {
   };
 
   const addOrder = (order: Omit<Order, "id" | "createdAt">) => {
+    // Find assigned staff for the table if not takeaway
+    let assignedStaffId: string | undefined;
+    if (order.tableId) {
+      const table = tables.find(t => t.id === order.tableId);
+      assignedStaffId = table?.assignedStaffId;
+    }
+
     const newOrder: Order = {
       ...order,
       id: `order-${Date.now()}`,
       createdAt: new Date(),
+      staffId: assignedStaffId,
     };
     setOrders((prev) => [newOrder, ...prev]);
-    
+
     // Update table status if not takeaway
     if (order.tableId) {
       setTables((prev) =>
-        prev.map((t) =>
-          t.id === order.tableId ? { ...t, status: "occupied", currentOrder: newOrder } : t
-        )
+        prev.map((t) => {
+          if (t.id !== order.tableId) return t;
+
+          // If the new order is already paid (e.g. direct bill), table should be available
+          if (order.status === 'paid') {
+            return { ...t, status: "available", currentOrder: undefined };
+          }
+
+          // Otherwise, for pending/preparing orders, table is now occupied
+          return { ...t, status: "occupied", currentOrder: newOrder };
+        })
       );
     }
   };
@@ -79,7 +153,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
     setOrders((prev) =>
       prev.map((o) => (o.id === id ? { ...o, status } : o))
     );
-    
+
     // If paid, reset table
     if (status === "paid") {
       const order = orders.find((o) => o.id === id);
@@ -93,6 +167,20 @@ export function POSProvider({ children }: { children: ReactNode }) {
         );
       }
     }
+  };
+
+  const updateOrderDetails = (updatedOrder: Order) => {
+    setOrders((prev) =>
+      prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o))
+    );
+  };
+
+  const deleteOrder = (id: string) => {
+    setOrders((prev) => prev.filter((o) => o.id !== id));
+  };
+
+  const deleteOrders = (ids: string[]) => {
+    setOrders((prev) => prev.filter((o) => !ids.includes(o.id)));
   };
 
   const addStaff = (staffData: Omit<Staff, "id" | "createdAt" | "assignedTableIds">) => {
@@ -130,6 +218,14 @@ export function POSProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  const clearAllOrders = () => {
+    setOrders([]);
+    // Also reset all tables to available since orders are gone
+    setTables((prev) =>
+      prev.map((t) => ({ ...t, status: "available", currentOrder: undefined }))
+    );
+  };
+
   return (
     <POSContext.Provider
       value={{
@@ -148,9 +244,13 @@ export function POSProvider({ children }: { children: ReactNode }) {
         deleteMenuItems,
         addOrder,
         updateOrderStatus,
+        updateOrderDetails,
+        deleteOrder,
+        deleteOrders,
         addStaff,
         assignStaffToTable,
         resetTables,
+        clearAllOrders,
       }}
     >
       {children}

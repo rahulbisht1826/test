@@ -1,150 +1,139 @@
-import { useState } from "react";
-import { TrendingUp, DollarSign, ShoppingCart, Calendar } from "lucide-react";
-import { SalesChart } from "@/components/reports/SalesChart";
-import { OrdersChart } from "@/components/reports/OrdersChart";
-import { StatCard } from "@/components/dashboard/StatCard";
-import { mockSalesData, mockMonthlyData } from "@/data/mockData";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+    LineChart,
+    Line,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    Legend,
+    ResponsiveContainer,
+    BarChart,
+    Bar,
+} from "recharts";
+
+const salesData = [
+    { name: "Jan", sales: 4000 },
+    { name: "Feb", sales: 3000 },
+    { name: "Mar", sales: 5000 },
+    { name: "Apr", sales: 4500 },
+    { name: "May", sales: 6000 },
+    { name: "Jun", sales: 5500 },
+];
+
+const staffData = [
+    { name: "John", orders: 45, sales: 1200 },
+    { name: "Jane", orders: 38, sales: 950 },
+    { name: "Bob", orders: 52, sales: 1500 },
+    { name: "Alice", orders: 61, sales: 1800 },
+];
 
 const Reports = () => {
-  const [period, setPeriod] = useState("weekly");
+    return (
+        <div className="space-y-6 p-6 pb-20 md:pb-6">
+            <div className="flex flex-col gap-2">
+                <h1 className="text-2xl font-bold tracking-tight">Reports & Analytics</h1>
+                <p className="text-muted-foreground">
+                    View your business performance and staff metrics.
+                </p>
+            </div>
 
-  const weeklyRevenue = mockSalesData.reduce((sum, d) => sum + d.revenue, 0);
-  const weeklyOrders = mockSalesData.reduce((sum, d) => sum + d.orders, 0);
-  const avgOrderValue = weeklyRevenue / weeklyOrders;
-
-  const monthlyRevenue = mockMonthlyData.reduce((sum, d) => sum + d.revenue, 0);
-  const monthlyOrders = mockMonthlyData.reduce((sum, d) => sum + d.orders, 0);
-
-  return (
-    <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Reports</h1>
-        <p className="text-muted-foreground">
-          Track your business performance and growth
-        </p>
-      </div>
-
-      <Tabs value={period} onValueChange={setPeriod}>
-        <TabsList>
-          <TabsTrigger value="weekly">This Week</TabsTrigger>
-          <TabsTrigger value="monthly">This Month</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="weekly" className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard
-              title="Weekly Revenue"
-              value={`₹₹{weeklyRevenue.toLocaleString()}`}
-              icon={DollarSign}
-              variant="primary"
-              trend={{ value: 15, isPositive: true }}
-            />
-            <StatCard
-              title="Total Orders"
-              value={weeklyOrders}
-              icon={ShoppingCart}
-              variant="success"
-              trend={{ value: 8, isPositive: true }}
-            />
-            <StatCard
-              title="Avg. Order Value"
-              value={`₹₹{avgOrderValue.toFixed(2)}`}
-              icon={TrendingUp}
-              trend={{ value: 5, isPositive: true }}
-            />
-            <StatCard
-              title="Best Day"
-              value="Saturday"
-              subtitle="₹5,100 in sales"
-              icon={Calendar}
-              variant="warning"
-            />
-          </div>
-
-          <div className="grid gap-6 lg:grid-cols-2">
-            <SalesChart data={mockSalesData} title="Weekly Revenue" />
-            <OrdersChart data={mockSalesData} title="Weekly Orders" />
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Top Selling Items This Week</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {[
-                  { name: "Ribeye Steak", orders: 45, revenue: 1484.55 },
-                  { name: "Grilled Salmon", orders: 38, revenue: 949.62 },
-                  { name: "Chicken Alfredo", orders: 32, revenue: 607.68 },
-                  { name: "House Wine (Glass)", orders: 85, revenue: 764.15 },
-                  { name: "Chocolate Cake", orders: 28, revenue: 223.72 },
-                ].map((item, index) => (
-                  <div
-                    key={item.name}
-                    className="flex items-center justify-between rounded-lg border p-4"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                        {index + 1}
-                      </div>
-                      <div>
-                        <p className="font-medium">{item.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {item.orders} orders
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">₹45,231.89</div>
+                        <p className="text-xs text-muted-foreground">
+                            +20.1% from last month
                         </p>
-                      </div>
-                    </div>
-                    <p className="font-semibold text-primary">
-                      ₹{item.revenue.toFixed(2)}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Orders</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">+2350</div>
+                        <p className="text-xs text-muted-foreground">
+                            +180.1% from last month
+                        </p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Active Staff</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">12</div>
+                        <p className="text-xs text-muted-foreground">
+                            +2 since last month
+                        </p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Active Tables</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">8/12</div>
+                        <p className="text-xs text-muted-foreground">
+                            Currently occupied
+                        </p>
+                    </CardContent>
+                </Card>
+            </div>
 
-        <TabsContent value="monthly" className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard
-              title="Monthly Revenue"
-              value={`₹₹{monthlyRevenue.toLocaleString()}`}
-              icon={DollarSign}
-              variant="primary"
-              trend={{ value: 22, isPositive: true }}
-            />
-            <StatCard
-              title="Total Orders"
-              value={monthlyOrders}
-              icon={ShoppingCart}
-              variant="success"
-              trend={{ value: 18, isPositive: true }}
-            />
-            <StatCard
-              title="Avg. Order Value"
-              value={`₹₹{(monthlyRevenue / monthlyOrders).toFixed(2)}`}
-              icon={TrendingUp}
-              trend={{ value: 3, isPositive: true }}
-            />
-            <StatCard
-              title="Best Week"
-              value="Week 4"
-              subtitle="₹21,200 in sales"
-              icon={Calendar}
-              variant="warning"
-            />
-          </div>
+            <div className="grid gap-4 md:grid-cols-2">
+                <Card className="col-span-1">
+                    <CardHeader>
+                        <CardTitle>Sales Growth</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="h-[300px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={salesData}>
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis dataKey="name" />
+                                    <YAxis />
+                                    <Tooltip />
+                                    <Legend />
+                                    <Line
+                                        type="monotone"
+                                        dataKey="sales"
+                                        stroke="#8884d8"
+                                        activeDot={{ r: 8 }}
+                                    />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </CardContent>
+                </Card>
 
-          <div className="grid gap-6 lg:grid-cols-2">
-            <SalesChart data={mockMonthlyData} title="Monthly Revenue" />
-            <OrdersChart data={mockMonthlyData} title="Monthly Orders" />
-          </div>
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
+                <Card className="col-span-1">
+                    <CardHeader>
+                        <CardTitle>Staff Performance</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="h-[300px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={staffData}>
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis dataKey="name" />
+                                    <YAxis />
+                                    <Tooltip />
+                                    <Legend />
+                                    <Bar dataKey="orders" fill="#82ca9d" name="Orders Completed" />
+                                    <Bar dataKey="sales" fill="#8884d8" name="Total Sales (₹)" />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
+    );
 };
 
 export default Reports;

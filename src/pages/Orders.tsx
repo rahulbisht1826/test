@@ -1,11 +1,11 @@
-import { useState, useMemo } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useState, useMemo, useEffect } from "react";
+import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft, Search, ShoppingBag, Minus, Plus, Trash2, Receipt, Send } from "lucide-react";
 import { MenuItemCard } from "@/components/orders/MenuItemCard";
 import { CustomerDetailsDialog } from "@/components/orders/CustomerDetailsDialog";
 import { RecentOrdersList } from "@/components/orders/RecentOrdersList";
 import { usePOS } from "@/context/POSContext";
-import { MenuItem, OrderItem, CustomerDetails } from "@/types/pos";
+import { Order, MenuItem, OrderItem, CustomerDetails } from "@/types/pos";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -24,10 +24,13 @@ import { toast } from "@/hooks/use-toast";
 const Orders = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const tableId = searchParams.get("table");
   const isTakeaway = searchParams.get("takeaway") === "true";
 
-  const { menuItems, categories, tables, orders, addOrder, updateOrderStatus } = usePOS();
+  const { menuItems, categories, tables, orders, addOrder, updateOrderStatus, updateOrderDetails, deleteOrder, deleteOrders } = usePOS();
+
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -49,6 +52,49 @@ const Orders = () => {
     });
   }, [menuItems, searchQuery, selectedCategory]);
 
+  useEffect(() => {
+    if (location.state && location.state.editOrder) {
+      const orderToEdit = location.state.editOrder as Order;
+      setOrderItems(orderToEdit.items);
+      if (orderToEdit.customerDetails) {
+        setCustomerDetails(orderToEdit.customerDetails);
+      }
+      setEditingOrderId(orderToEdit.id);
+
+      // Clear state
+      window.history.replaceState({}, document.title);
+
+      toast({
+        title: "Order Loaded",
+        description: "Order loaded for editing.",
+      });
+    }
+  }, [location.state]);
+
+  const handleEditOrder = (order: Order) => {
+    setOrderItems(order.items);
+    if (order.customerDetails) {
+      setCustomerDetails(order.customerDetails);
+    }
+    setEditingOrderId(order.id);
+    toast({
+      title: "Editing Order",
+      description: "Order loaded for editing.",
+    });
+    // Ensure we are in a view where we can see the cart
+    if (!tableId && !isTakeaway) {
+      // If we are in "Orders" view, maybe switch to takeaway mode to see cart?
+      // Or just let the cart appear if we change the layout?
+      // The layout hides the cart if !showOrderForm.
+      // So we should navigate to takeaway mode or stay if table is selected.
+      if (order.tableId) {
+        navigate(`/orders?table=${order.tableId}`);
+      } else {
+        navigate(`/orders?takeaway=true`);
+      }
+    }
+  };
+
   const handleAddItem = (item: MenuItem) => {
     setOrderItems((prev) => {
       const existingItem = prev.find((i) => i.menuItem.id === item.id);
@@ -61,7 +107,7 @@ const Orders = () => {
     });
     toast({
       title: "Item added",
-      description: `₹{item.name} added to order`,
+      description: `${item.name} added to order`,
     });
   };
 
@@ -93,40 +139,71 @@ const Orders = () => {
     setCustomerDetails(details);
     setShowCustomerDialog(false);
 
-    // Create the order
-    addOrder({
-      tableId: isTakeaway ? null : tableId,
-      items: orderItems,
-      status: "pending",
-      total: total,
-      customerDetails: details,
-      isTakeaway: isTakeaway,
-    });
-
-    toast({
-      title: "Order sent!",
-      description: `Order has been added to the list`,
-    });
+    if (editingOrderId) {
+      const orderToUpdate = orders.find(o => o.id === editingOrderId);
+      if (orderToUpdate) {
+        updateOrderDetails({
+          ...orderToUpdate,
+          items: orderItems,
+          total: total,
+          customerDetails: details,
+          // Preserve other fields
+        });
+        toast({
+          title: "Order Updated",
+          description: "Order details have been updated successfully.",
+        });
+      }
+      setEditingOrderId(null);
+    } else {
+      // Create the order
+      addOrder({
+        tableId: isTakeaway ? null : tableId,
+        items: orderItems,
+        status: "pending",
+        total: total,
+        customerDetails: details,
+        isTakeaway: isTakeaway,
+      });
+      toast({
+        title: "Order sent!",
+        description: `Order has been added to the list`,
+      });
+    }
 
     setOrderItems([]);
     setCustomerDetails(null);
   };
 
   const handleConfirmBill = () => {
-    addOrder({
-      tableId: isTakeaway ? null : tableId,
-      items: orderItems,
-      status: "paid",
-      total: total,
-      customerDetails: customerDetails || undefined,
-      isTakeaway: isTakeaway,
-    });
+    if (editingOrderId) {
+      const orderToUpdate = orders.find(o => o.id === editingOrderId);
+      if (orderToUpdate) {
+        updateOrderDetails({
+          ...orderToUpdate,
+          items: orderItems,
+          status: "paid",
+          total: total,
+          customerDetails: customerDetails || undefined,
+        });
+      }
+      setEditingOrderId(null);
+    } else {
+      addOrder({
+        tableId: isTakeaway ? null : tableId,
+        items: orderItems,
+        status: "paid",
+        total: total,
+        customerDetails: customerDetails || undefined,
+        isTakeaway: isTakeaway,
+      });
+    }
 
     toast({
       title: "Bill Generated!",
       description: isTakeaway
         ? "Takeaway bill has been generated successfully."
-        : `Bill for Table ₹{table?.number} has been generated successfully.`,
+        : `Bill for Table ${table?.number} has been generated successfully.`,
     });
     setShowBillDialog(false);
     setOrderItems([]);
@@ -143,7 +220,7 @@ const Orders = () => {
   const tax = subtotal * 0.1;
   const total = subtotal + tax;
 
-  const pageTitle = isTakeaway ? "Takeaway Order" : table ? `Table ₹{table.number} Order` : "Orders";
+  const pageTitle = isTakeaway ? "Takeaway Order" : table ? `Table ${table.number} Order` : "Orders";
   const showOrderForm = isTakeaway || table;
 
   return (
@@ -172,7 +249,13 @@ const Orders = () => {
               </Button>
             </div>
           </div>
-          <RecentOrdersList orders={orders} onUpdateStatus={updateOrderStatus} />
+          <RecentOrdersList
+            orders={orders}
+            onUpdateStatus={updateOrderStatus}
+            onDelete={deleteOrder}
+            onDeleteMultiple={deleteOrders}
+            onEdit={handleEditOrder}
+          />
         </div>
       ) : (
         <div className="grid gap-6 lg:grid-cols-3">
@@ -207,7 +290,13 @@ const Orders = () => {
 
             {/* Recent Orders Section */}
             <div className="mt-8">
-              <RecentOrdersList orders={orders} onUpdateStatus={updateOrderStatus} />
+              <RecentOrdersList
+                orders={orders}
+                onUpdateStatus={updateOrderStatus}
+                onDelete={deleteOrder}
+                onDeleteMultiple={deleteOrders}
+                onEdit={handleEditOrder}
+              />
             </div>
           </div>
 
@@ -217,7 +306,7 @@ const Orders = () => {
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center gap-2">
                   <Receipt className="h-5 w-5 text-primary" />
-                  {isTakeaway ? "Takeaway" : `Table ₹{table?.number}`} Order
+                  {isTakeaway ? "Takeaway" : `Table ${table?.number}`} Order
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex-1 overflow-auto">
@@ -293,9 +382,9 @@ const Orders = () => {
                     </div>
                   </div>
                   <div className="w-full flex gap-2">
-                    <Button className="flex-1" variant="outline" onClick={handleSendToOrderList}>
+                    <Button className="flex-1" variant={editingOrderId ? "secondary" : "outline"} onClick={handleSendToOrderList}>
                       <Send className="mr-2 h-4 w-4" />
-                      Send to Order List
+                      {editingOrderId ? "Update Order" : "Send to Order List"}
                     </Button>
                     <Button className="flex-1" onClick={handleGenerateBill}>
                       Generate Bill
@@ -320,7 +409,7 @@ const Orders = () => {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
-              Bill Summary - {isTakeaway ? "Takeaway" : `Table ₹{table?.number}`}
+              Bill Summary - {isTakeaway ? "Takeaway" : `Table ${table?.number}`}
             </DialogTitle>
             <DialogDescription>
               Review the bill before confirming

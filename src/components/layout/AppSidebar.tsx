@@ -1,11 +1,11 @@
-import { 
-  LayoutDashboard, 
-  UtensilsCrossed, 
-  Receipt, 
-  BarChart3, 
+import {
+  LayoutDashboard,
+  UtensilsCrossed,
+  Receipt,
   Settings,
   Hotel,
-  BookOpen
+  BookOpen,
+  BarChart3,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -49,8 +49,8 @@ export function AppSidebar() {
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild className="h-11">
-                    <NavLink 
-                      to={item.url} 
+                    <NavLink
+                      to={item.url}
                       end={item.url === "/"}
                       className="flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground/70 transition-all hover:bg-sidebar-accent hover:text-sidebar-foreground"
                       activeClassName="bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"

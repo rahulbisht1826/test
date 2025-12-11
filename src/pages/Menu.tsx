@@ -71,7 +71,7 @@ const Menu = () => {
     setSelectedItems([]);
     toast({
       title: "Items deleted",
-      description: `₹{selectedItems.length} item(s) removed from menu`,
+      description: `${selectedItems.length} item(s) removed from menu`,
     });
   };
 
@@ -121,7 +121,7 @@ const Menu = () => {
       });
       toast({
         title: "Item updated",
-        description: `₹{formData.name} has been updated`,
+        description: `${formData.name} has been updated`,
       });
     } else {
       addMenuItem({
@@ -131,7 +131,7 @@ const Menu = () => {
       });
       toast({
         title: "Item added",
-        description: `₹{formData.name} has been added to the menu`,
+        description: `${formData.name} has been added to the menu`,
       });
     }
 
@@ -201,9 +201,8 @@ const Menu = () => {
         {filteredItems.map((item) => (
           <Card
             key={item.id}
-            className={`transition-all ₹{
-              selectedItems.includes(item.id) ? "ring-2 ring-primary" : ""
-            }`}
+            className={`transition-all ${selectedItems.includes(item.id) ? "ring-2 ring-primary" : ""
+              }`}
           >
             <CardContent className="p-4">
               <div className="flex items-start gap-3">
