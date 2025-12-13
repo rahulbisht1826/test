@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, Search, ShoppingBag, Minus, Plus, Trash2, Receipt, Send } from "lucide-react";
+import { ArrowLeft, Search, ShoppingBag, Minus, Plus, Trash2, Receipt, Send, Eye } from "lucide-react";
 import { MenuItemCard } from "@/components/orders/MenuItemCard";
 import { CustomerDetailsDialog } from "@/components/orders/CustomerDetailsDialog";
 import { RecentOrdersList } from "@/components/orders/RecentOrdersList";
+import { BillPreviewDialog } from "@/components/orders/BillPreviewDialog";
 import { usePOS } from "@/context/POSContext";
 import { Order, MenuItem, OrderItem, CustomerDetails } from "@/types/pos";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,22 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
+import { format, subDays, isSameDay } from "date-fns";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar as CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const Orders = () => {
   const [searchParams] = useSearchParams();
@@ -28,7 +45,7 @@ const Orders = () => {
   const tableId = searchParams.get("table");
   const isTakeaway = searchParams.get("takeaway") === "true";
 
-  const { menuItems, categories, tables, orders, addOrder, updateOrderStatus, updateOrderDetails, deleteOrder, deleteOrders } = usePOS();
+  const { menuItems, categories, tables, orders, addOrder, updateOrderStatus, updateOrderDetails, deleteOrder, deleteOrders, settings } = usePOS();
 
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
 
@@ -37,7 +54,46 @@ const Orders = () => {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [showBillDialog, setShowBillDialog] = useState(false);
   const [showCustomerDialog, setShowCustomerDialog] = useState(false);
+  const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [customerDetails, setCustomerDetails] = useState<CustomerDetails | null>(null);
+
+  // Filters
+  const [dateFilter, setDateFilter] = useState("lifetime");
+  const [customDate, setCustomDate] = useState<Date | undefined>(new Date());
+  const [orderSearchQuery, setOrderSearchQuery] = useState("");
+
+  const filteredOrders = useMemo(() => {
+    let filtered = orders;
+
+    // Date Filtering
+    if (dateFilter !== "lifetime") {
+      if (dateFilter === "custom" && customDate) {
+        filtered = filtered.filter(order => isSameDay(new Date(order.createdAt), customDate));
+      } else if (dateFilter === "today") {
+        filtered = filtered.filter(order => isSameDay(new Date(order.createdAt), new Date()));
+      } else {
+        const days = parseInt(dateFilter);
+        if (!isNaN(days)) {
+          const startDate = subDays(new Date(), days);
+          filtered = filtered.filter(order => new Date(order.createdAt) >= startDate);
+        }
+      }
+    }
+
+    // Search Filtering
+    if (orderSearchQuery) {
+      const query = orderSearchQuery.toLowerCase();
+      filtered = filtered.filter(order => {
+        const billMatch = order.billNumber?.toString().includes(query);
+        const tableMatch = order.tableId?.toLowerCase().includes(query);
+        const customerMatch = order.customerDetails?.name?.toLowerCase().includes(query);
+        const phoneMatch = order.customerDetails?.phone?.toLowerCase().includes(query);
+        return billMatch || tableMatch || customerMatch || phoneMatch;
+      });
+    }
+
+    return filtered;
+  }, [orders, dateFilter, customDate, orderSearchQuery]);
 
   const table = tables.find((t) => t.id === tableId);
 
@@ -83,10 +139,6 @@ const Orders = () => {
     });
     // Ensure we are in a view where we can see the cart
     if (!tableId && !isTakeaway) {
-      // If we are in "Orders" view, maybe switch to takeaway mode to see cart?
-      // Or just let the cart appear if we change the layout?
-      // The layout hides the cart if !showOrderForm.
-      // So we should navigate to takeaway mode or stay if table is selected.
       if (order.tableId) {
         navigate(`/orders?table=${order.tableId}`);
       } else {
@@ -135,7 +187,7 @@ const Orders = () => {
     setShowCustomerDialog(true);
   };
 
-  const handleCustomerDetailsSubmit = (details: CustomerDetails) => {
+  const handleCustomerDetailsSubmit = (details: CustomerDetails, status: Order["status"]) => {
     setCustomerDetails(details);
     setShowCustomerDialog(false);
 
@@ -146,6 +198,7 @@ const Orders = () => {
           ...orderToUpdate,
           items: orderItems,
           total: total,
+          status: status,
           customerDetails: details,
           // Preserve other fields
         });
@@ -160,7 +213,7 @@ const Orders = () => {
       addOrder({
         tableId: isTakeaway ? null : tableId,
         items: orderItems,
-        status: "pending",
+        status: status,
         total: total,
         customerDetails: details,
         isTakeaway: isTakeaway,
@@ -173,6 +226,11 @@ const Orders = () => {
 
     setOrderItems([]);
     setCustomerDetails(null);
+    if (!isTakeaway && tableId) {
+      navigate("/tables");
+    } else if (isTakeaway) {
+      // stay or clear? stay is fine.
+    }
   };
 
   const handleConfirmBill = () => {
@@ -220,6 +278,10 @@ const Orders = () => {
   const tax = subtotal * 0.1;
   const total = subtotal + tax;
 
+  const displayBillNumber = editingOrderId
+    ? orders.find(o => o.id === editingOrderId)?.billNumber
+    : (settings.lastBillNumber || 0) + 1;
+
   const pageTitle = isTakeaway ? "Takeaway Order" : table ? `Table ${table.number} Order` : "Orders";
   const showOrderForm = isTakeaway || table;
 
@@ -248,9 +310,63 @@ const Orders = () => {
                 Takeaway Order
               </Button>
             </div>
+
+            <div className="flex flex-col gap-4 p-4 border rounded-lg bg-card">
+              <h3 className="font-semibold">Filter Orders</h3>
+              <div className="flex flex-col gap-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by Bill #, Table, Name..."
+                    value={orderSearchQuery}
+                    onChange={(e) => setOrderSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Select value={dateFilter} onValueChange={setDateFilter}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Period" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="today">Today</SelectItem>
+                      <SelectItem value="7">Last 7 Days</SelectItem>
+                      <SelectItem value="30">Last 30 Days</SelectItem>
+                      <SelectItem value="lifetime">Lifetime</SelectItem>
+                      <SelectItem value="custom">Custom Date</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {dateFilter === 'custom' && (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "flex-1 justify-start text-left font-normal",
+                            !customDate && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {customDate ? format(customDate, "MMM dd") : <span>Date</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="end">
+                        <Calendar
+                          mode="single"
+                          selected={customDate}
+                          onSelect={setCustomDate}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
           <RecentOrdersList
-            orders={orders}
+            orders={filteredOrders}
             onUpdateStatus={updateOrderStatus}
             onDelete={deleteOrder}
             onDeleteMultiple={deleteOrders}
@@ -410,6 +526,7 @@ const Orders = () => {
           <DialogHeader>
             <DialogTitle>
               Bill Summary - {isTakeaway ? "Takeaway" : `Table ${table?.number}`}
+              {displayBillNumber && <span className="ml-2 text-muted-foreground">#{displayBillNumber}</span>}
             </DialogTitle>
             <DialogDescription>
               Review the bill before confirming
@@ -455,14 +572,35 @@ const Orders = () => {
               </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowBillDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleConfirmBill}>Confirm & Print</Button>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <div className="flex gap-2 w-full">
+              <Button variant="outline" className="flex-1" onClick={() => setShowPreviewDialog(true)}>
+                <Eye className="mr-2 h-4 w-4" /> Preview
+              </Button>
+              <div className="flex-1 flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setShowBillDialog(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleConfirmBill}>Confirm & Print</Button>
+              </div>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Bill Preview Dialog */}
+      <BillPreviewDialog
+        open={showPreviewDialog}
+        onOpenChange={setShowPreviewDialog}
+        orderItems={orderItems}
+        subtotal={subtotal}
+        tax={tax}
+        total={total}
+        customerDetails={customerDetails}
+        tableNumber={table?.number}
+        isTakeaway={isTakeaway}
+        billNumber={displayBillNumber}
+      />
     </div>
   );
 };

@@ -4,6 +4,7 @@ export interface MenuItem {
   price: number;
   category: string;
   image?: string;
+  available?: boolean;
 }
 
 export interface OrderItem {
@@ -27,6 +28,7 @@ export interface Order {
   customerDetails?: CustomerDetails;
   isTakeaway: boolean;
   staffId?: string;
+  billNumber?: number;
 }
 
 export interface Staff {

@@ -109,6 +109,7 @@ export function RecentOrdersList({ orders, onUpdateStatus, onDelete, onDeleteMul
                 />
                 <span className="font-semibold">
                   {order.isTakeaway ? "Takeaway" : `Table ${order.tableId?.replace("t", "")}`}
+                  {order.billNumber && <span className="ml-2 text-muted-foreground"># {order.billNumber}</span>}
                 </span>
                 <Badge variant="outline" className={statusColors[order.status]}>
                   {order.status}
@@ -132,7 +133,7 @@ export function RecentOrdersList({ orders, onUpdateStatus, onDelete, onDeleteMul
                   <span>
                     {item.menuItem.name} x{item.quantity}
                   </span>
-                  <span>${(item.menuItem.price * item.quantity).toFixed(2)}</span>
+                  <span>₹{(item.menuItem.price * item.quantity).toFixed(2)}</span>
                 </div>
               ))}
               {order.items.length > 3 && (
@@ -144,7 +145,7 @@ export function RecentOrdersList({ orders, onUpdateStatus, onDelete, onDeleteMul
 
             <div className="flex items-center justify-between pt-2 border-t">
               <span className="font-bold text-primary">
-                ${order.total.toFixed(2)}
+                ₹{order.total.toFixed(2)}
               </span>
               <div className="flex items-center gap-2">
                 {onEdit && (

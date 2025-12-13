@@ -16,6 +16,14 @@ import Reports from "./pages/Reports";
 
 const queryClient = new QueryClient();
 
+import { Navigate, Outlet } from "react-router-dom";
+import Login from "./pages/Login";
+
+const ProtectedRoute = () => {
+  const isAuthenticated = localStorage.getItem("isAuthenticated") === "true";
+  return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -24,15 +32,19 @@ const App = () => (
         <Sonner />
         <HashRouter>
           <Routes>
-            <Route element={<AppLayout />}>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/tables" element={<Tables />} />
-              <Route path="/menu" element={<Menu />} />
-              <Route path="/orders" element={<Orders />} />
-              <Route path="/reports" element={<Reports />} />
+            <Route path="/login" element={<Login />} />
 
-              <Route path="/settings" element={<Settings />} />
+            <Route element={<ProtectedRoute />}>
+              <Route element={<AppLayout />}>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/tables" element={<Tables />} />
+                <Route path="/menu" element={<Menu />} />
+                <Route path="/orders" element={<Orders />} />
+                <Route path="/reports" element={<Reports />} />
+                <Route path="/settings" element={<Settings />} />
+              </Route>
             </Route>
+
             <Route path="*" element={<NotFound />} />
           </Routes>
         </HashRouter>

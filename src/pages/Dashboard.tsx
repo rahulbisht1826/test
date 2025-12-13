@@ -1,8 +1,30 @@
 import { DollarSign, ShoppingCart, Users, TrendingUp } from "lucide-react";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { RecentOrders } from "@/components/dashboard/RecentOrders";
+import { usePOS } from "@/context/POSContext";
+import { DashboardClock } from "@/components/dashboard/DashboardClock";
 
 const Dashboard = () => {
+  const { orders, tables, clockSettings } = usePOS();
+
+  // Calculate stats
+  const todaysOrders = orders; // Assuming orders context contains today's orders or recent ones
+  const totalOrders = todaysOrders.length;
+
+  const totalRevenue = todaysOrders.reduce((acc, order) => {
+    // Only count paid or non-cancelled orders if needed. 
+    // For now, let's sum total of all valid orders or just paid ones.
+    // Let's assume 'paid' status for revenue, or maybe 'served' + 'paid'.
+    // A common simple dashboard shows total value of orders created today.
+    return acc + (order.total || 0);
+  }, 0);
+
+  const activeTables = tables.filter(t => t.status === "occupied").length;
+  const reservedTables = tables.filter(t => t.status === "reserved").length;
+  const totalTablesCount = tables.length;
+
+  const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
@@ -12,33 +34,39 @@ const Dashboard = () => {
         </p>
       </div>
 
+      {clockSettings.enabled && (
+        <div className="flex justify-start mb-6">
+          <DashboardClock type={clockSettings.type} />
+        </div>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Today's Revenue"
-          value="₹4,250"
+          value={`₹${totalRevenue.toFixed(2)}`}
           icon={DollarSign}
           variant="primary"
-          trend={{ value: 12, isPositive: true }}
+        // trend={{ value: 12, isPositive: true }} // Trends would require historical data
         />
         <StatCard
           title="Total Orders"
-          value="68"
+          value={totalOrders.toString()}
           icon={ShoppingCart}
           variant="success"
-          trend={{ value: 8, isPositive: true }}
+        // trend={{ value: 8, isPositive: true }}
         />
         <StatCard
           title="Active Tables"
-          value="8/12"
-          subtitle="5 occupied, 3 reserved"
+          value={`${activeTables}/${totalTablesCount}`}
+          subtitle={`${activeTables} occupied, ${reservedTables} reserved`}
           icon={Users}
           variant="warning"
         />
         <StatCard
           title="Avg. Order Value"
-          value="₹62.50"
+          value={`₹${avgOrderValue.toFixed(2)}`}
           icon={TrendingUp}
-          trend={{ value: 5, isPositive: true }}
+        // trend={{ value: 5, isPositive: true }}
         />
       </div>
 

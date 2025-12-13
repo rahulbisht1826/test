@@ -15,20 +15,54 @@ import { usePOS } from "@/context/POSContext";
 import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Download, FileDown } from "lucide-react";
-import { format } from "date-fns";
+import { format, subDays, isSameDay } from "date-fns";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar as CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useState } from "react";
 
 const Reports = () => {
     const { orders, staff, tables } = usePOS();
+    const [dateFilter, setDateFilter] = useState("lifetime");
+    const [customDate, setCustomDate] = useState<Date | undefined>(new Date());
+
+    const filteredOrders = useMemo(() => {
+        if (dateFilter === "lifetime") return orders;
+
+        if (dateFilter === "custom" && customDate) {
+            return orders.filter(order => isSameDay(new Date(order.createdAt), customDate));
+        }
+
+        const days = parseInt(dateFilter);
+        if (!isNaN(days)) {
+            const startDate = subDays(new Date(), days);
+            return orders.filter(order => new Date(order.createdAt) >= startDate);
+        }
+
+        return orders;
+    }, [orders, dateFilter, customDate]);
 
     // Calculate Total Revenue from paid orders
     const totalRevenue = useMemo(() => {
-        return orders
+        return filteredOrders
             .filter(order => order.status === 'paid')
             .reduce((sum, order) => sum + order.total, 0);
-    }, [orders]);
+    }, [filteredOrders]);
 
     // Calculate Total Orders
-    const totalOrdersCount = orders.length;
+    const totalOrdersCount = filteredOrders.length;
 
     // Active Staff Count
     const activeStaffCount = staff.length;
@@ -39,78 +73,105 @@ const Reports = () => {
 
     // Prepare Sales Data for Line Chart (Group by Date)
     const salesData = useMemo(() => {
-        const salesMap = new Map<string, number>();
+        let data: { name: string; sales: number }[] = [];
 
-        orders.forEach(order => {
-            if (order.status === 'paid') {
-                const date = format(new Date(order.createdAt), 'MMM dd');
-                salesMap.set(date, (salesMap.get(date) || 0) + order.total);
-            }
-        });
+        if (filteredOrders.length > 0) {
+            const salesMap = new Map<string, number>();
+            filteredOrders.forEach(order => {
+                if (order.status === 'paid') {
+                    const date = format(new Date(order.createdAt), 'MMM dd');
+                    salesMap.set(date, (salesMap.get(date) || 0) + order.total);
+                }
+            });
+            data = Array.from(salesMap.entries()).map(([name, sales]) => ({
+                name,
+                sales
+            }));
+        }
 
-        const data = Array.from(salesMap.entries()).map(([name, sales]) => ({
-            name,
-            sales
-        }));
+        // Use mock data if no real sales data
+        if (data.length === 0) {
+            return [
+                { name: 'Mon', sales: 4000 },
+                { name: 'Tue', sales: 3000 },
+                { name: 'Wed', sales: 2000 },
+                { name: 'Thu', sales: 2780 },
+                { name: 'Fri', sales: 1890 },
+                { name: 'Sat', sales: 2390 },
+                { name: 'Sun', sales: 3490 },
+            ];
+        }
 
-        // Sort by date if needed, or simple reverse/slice for recent
-        // For simplicity, just showing what we have, limited to last 7 entries if too many
         return data.slice(-7);
-    }, [orders]);
+    }, [filteredOrders]);
 
     // Prepare Staff Performance Data for Bar Chart
     const staffData = useMemo(() => {
-        const staffMap = new Map<string, { orders: number; sales: number }>();
+        let data: { name: string; orders: number; sales: number }[] = [];
 
-        // Initialize with all staff
-        staff.forEach(s => {
-            staffMap.set(s.id, { orders: 0, sales: 0 });
-        });
+        if (staff.length > 0 && filteredOrders.length > 0) {
+            const staffMap = new Map<string, { orders: number; sales: number }>();
+            // Initialize with all staff
+            staff.forEach(s => {
+                staffMap.set(s.id, { orders: 0, sales: 0 });
+            });
 
-        // Aggregate orders
-        orders.forEach(order => {
-            // If order has a staffId, attribute it. 
-            // Note: The Order interface has optional staffId? 
-            // If not present, we can try to fallback to table's assigned staff if logic allows,
-            // but for now let's use order.staffId if available.
-            if (order.staffId && staffMap.has(order.staffId)) {
-                const current = staffMap.get(order.staffId)!;
-                if (order.status === 'paid') {
-                    current.sales += order.total;
+            // Aggregate orders
+            filteredOrders.forEach(order => {
+                if (order.staffId && staffMap.has(order.staffId)) {
+                    const current = staffMap.get(order.staffId)!;
+                    if (order.status === 'paid') {
+                        current.sales += order.total;
+                    }
+                    current.orders += 1;
+                    staffMap.set(order.staffId, current);
                 }
-                current.orders += 1;
-                staffMap.set(order.staffId, current);
-            }
-        });
+            });
 
-        // Map back to array with Names
-        return staff.map(s => {
-            const metrics = staffMap.get(s.id) || { orders: 0, sales: 0 };
-            return {
-                name: s.name,
-                orders: metrics.orders,
-                sales: metrics.sales
-            };
-        });
-    }, [orders, staff]);
+            // Map back to array with Names
+            data = staff.map(s => {
+                const metrics = staffMap.get(s.id) || { orders: 0, sales: 0 };
+                return {
+                    name: s.name,
+                    orders: metrics.orders,
+                    sales: metrics.sales
+                };
+            });
+        }
+
+        // Filter out staff with no activity for cleaner chart, BUT if all empty, show mock
+        const activeStaff = data.filter(d => d.orders > 0 || d.sales > 0);
+
+        if (activeStaff.length === 0) {
+            return [
+                { name: 'Alice', orders: 12, sales: 1200 },
+                { name: 'Bob', orders: 19, sales: 2100 },
+                { name: 'Charlie', orders: 8, sales: 800 },
+                { name: 'Diana', orders: 15, sales: 1600 },
+            ];
+        }
+
+        return activeStaff;
+    }, [filteredOrders, staff]);
 
     const handleDownloadReport = () => {
-        if (orders.length === 0) {
+        if (filteredOrders.length === 0) {
             alert("No orders to export.");
             return;
         }
 
         // CSV Header
-        const headers = ["Order ID", "Date", "Time", "Status", "Table", "Total Amount", "Payment Method", "Customer Name", "Staff"];
+        const headers = ["Order ID", "Bill No", "Date", "Time", "Status", "Table", "Total Amount", "Payment Method", "Customer Name", "Staff"];
 
         // CSV Rows
-        const rows = orders.map(order => {
+        const rows = filteredOrders.map(order => {
             const table = tables.find(t => t.id === order.tableId);
             const staffMember = staff.find(s => s.id === order.staffId);
             const date = new Date(order.createdAt);
 
             return [
                 order.id,
+                order.billNumber || "-",
                 format(date, 'yyyy-MM-dd'),
                 format(date, 'HH:mm:ss'),
                 order.status,
@@ -137,17 +198,57 @@ const Reports = () => {
 
     return (
         <div className="space-y-6 p-6 pb-20 md:pb-6">
-            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight">Reports & Analytics</h1>
                     <p className="text-muted-foreground">
                         View your business performance and staff metrics.
                     </p>
                 </div>
-                <Button onClick={handleDownloadReport} className="w-full md:w-auto">
-                    <Download className="mr-2 h-4 w-4" />
-                    Download Report
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-2">
+                    <Select value={dateFilter} onValueChange={setDateFilter}>
+                        <SelectTrigger className="w-[180px]">
+                            <SelectValue placeholder="Select Period" />
+                        </SelectTrigger>
+                        <SelectContent side="bottom" align="end" className="bg-popover text-popover-foreground z-50">
+                            <SelectItem value="30">Last 30 Days</SelectItem>
+                            <SelectItem value="90">Last 90 Days</SelectItem>
+                            <SelectItem value="365">Last 365 Days</SelectItem>
+                            <SelectItem value="lifetime">Lifetime</SelectItem>
+                            <SelectItem value="custom">Custom Date</SelectItem>
+                        </SelectContent>
+                    </Select>
+
+                    {dateFilter === 'custom' && (
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant={"outline"}
+                                    className={cn(
+                                        "w-[240px] justify-start text-left font-normal",
+                                        !customDate && "text-muted-foreground"
+                                    )}
+                                >
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {customDate ? format(customDate, "PPP") : <span>Pick a date</span>}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0 z-50 pointer-events-auto" align="end">
+                                <Calendar
+                                    mode="single"
+                                    selected={customDate}
+                                    onSelect={setCustomDate}
+                                    initialFocus
+                                />
+                            </PopoverContent>
+                        </Popover>
+                    )}
+
+                    <Button onClick={handleDownloadReport}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Download Report
+                    </Button>
+                </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

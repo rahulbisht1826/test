@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { User, Phone, CreditCard } from "lucide-react";
+import { User, Phone, CreditCard, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,12 +18,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CustomerDetails } from "@/types/pos";
+import { CustomerDetails, Order } from "@/types/pos";
 
 interface CustomerDetailsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (details: CustomerDetails) => void;
+  onSubmit: (details: CustomerDetails, status: Order["status"]) => void;
 }
 
 export function CustomerDetailsDialog({
@@ -34,6 +34,7 @@ export function CustomerDetailsDialog({
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"Cash" | "Card" | "UPI">("Cash");
+  const [status, setStatus] = useState<Order["status"]>("pending");
   const [error, setError] = useState("");
 
   const handleSubmit = () => {
@@ -53,10 +54,13 @@ export function CustomerDetailsDialog({
       name: name.trim() || undefined,
       phone: phone.trim(),
       paymentMethod
-    });
+    }, status);
+
+    // Reset form
     setName("");
     setPhone("");
     setPaymentMethod("Cash");
+    setStatus("pending");
     setError("");
   };
 
@@ -64,6 +68,7 @@ export function CustomerDetailsDialog({
     setName("");
     setPhone("");
     setPaymentMethod("Cash");
+    setStatus("pending");
     setError("");
     onOpenChange(false);
   };
@@ -72,9 +77,9 @@ export function CustomerDetailsDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Customer Details</DialogTitle>
+          <DialogTitle>Order Details</DialogTitle>
           <DialogDescription>
-            Enter customer information for the order
+            Enter customer information and order status
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
@@ -107,31 +112,53 @@ export function CustomerDetailsDialog({
             />
             {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
-          <div className="space-y-2">
-            <Label>
-              <CreditCard className="inline mr-2 h-4 w-4" />
-              Payment Method
-            </Label>
-            <Select
-              value={paymentMethod}
-              onValueChange={(value: "Cash" | "Card" | "UPI") => setPaymentMethod(value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select payment method" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Cash">Cash</SelectItem>
-                <SelectItem value="Card">Card</SelectItem>
-                <SelectItem value="UPI">UPI</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>
+                <CreditCard className="inline mr-2 h-4 w-4" />
+                Payment Method
+              </Label>
+              <Select
+                value={paymentMethod}
+                onValueChange={(value: "Cash" | "Card" | "UPI") => setPaymentMethod(value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select method" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Cash">Cash</SelectItem>
+                  <SelectItem value="Card">Card</SelectItem>
+                  <SelectItem value="UPI">UPI</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>
+                <Activity className="inline mr-2 h-4 w-4" />
+                Order Status
+              </Label>
+              <Select
+                value={status}
+                onValueChange={(value: Order["status"]) => setStatus(value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="preparing">Preparing</SelectItem>
+                  <SelectItem value="served">Served</SelectItem>
+                  <SelectItem value="paid">Paid</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={handleClose}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit}>Confirm & Send Order</Button>
+          <Button onClick={handleSubmit}>Confirm & Send</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
